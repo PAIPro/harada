@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grille Harada</title>
+<style>
+  :root{
+    --bg:#f4f1ec;--fg:#1d1d1f;--muted:#8a8378;--line:#d9d3c8;--cell:#fffdfa;
+    --goal:#c62828;--goalfg:#fff;--btn:#c62828;
+    --h0:#e57373;--h1:#f0a35e;--h2:#e6c34a;--h3:#7cc47f;--h4:#4fb3bf;--h5:#6f8fd8;--h6:#9b7fd1;--h7:#d47fb0;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121212;--fg:#ececec;--muted:#8d8d8d;--line:#333;--cell:#1c1c1c;--goal:#e53935;--goalfg:#fff;--btn:#e53935}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.3 system-ui,sans-serif;padding:16px}
+  header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto 12px}
+  h1{font-size:20px;margin:0}
+  .bar{display:flex;gap:8px;flex-wrap:wrap}
+  button,label.btn{background:var(--btn);color:#fff;border:0;border-radius:6px;padding:8px 12px;font:inherit;cursor:pointer}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+  #grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:1100px;margin:0 auto;aspect-ratio:1}
+  .block{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--line);border:2px solid var(--hue,var(--line));border-radius:6px;overflow:hidden}
+  .block.center{border-color:var(--goal)}
+  .cell{position:relative;min-height:0;background:var(--cell)}
+  .cell.act{background:color-mix(in srgb,var(--hue) 8%,var(--cell))}
+  .cell.sub{background:color-mix(in srgb,var(--hue) 35%,var(--cell))}
+  .cell.goal{background:var(--goal)}
+  textarea{display:block;width:100%;height:100%;resize:none;border:0;padding:4px 4px 14px;background:transparent;color:var(--fg);font:12px/1.25 system-ui,sans-serif;text-align:center;outline:none}
+  textarea:focus{box-shadow:inset 0 0 0 2px var(--hue,var(--goal))}
+  .sub textarea{font-weight:600}
+  .goal textarea{color:var(--goalfg);font-weight:700;font-size:13px}
+  .goal textarea::placeholder{color:rgba(255,255,255,.7)}
+  .open{position:absolute;right:2px;bottom:2px;width:16px;height:16px;padding:0;border:0;border-radius:3px;background:transparent;color:var(--muted);font-size:11px;line-height:16px;opacity:.35;cursor:pointer}
+  .goal .open{color:#fff}
+  .cell:hover .open,.open:focus{opacity:1;background:rgba(0,0,0,.08)}
+  dialog{border:0;border-radius:10px;padding:0;width:min(640px,92vw);background:var(--cell);color:var(--fg);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  .dlg-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:4px solid var(--hue,var(--goal));font-weight:600}
+  .dlg-head button{background:transparent;color:var(--fg);font-size:18px;padding:2px 8px}
+  .editor{position:relative;height:50vh}
+  #big,#hl{position:absolute;inset:0;margin:0;padding:16px;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:left;white-space:pre-wrap;overflow-wrap:break-word;tab-size:4;letter-spacing:0}
+  #hl{pointer-events:none;overflow:hidden;color:var(--fg)}
+  #big{background:transparent;color:transparent;caret-color:var(--fg);overflow:auto}
+  #big::selection{background:rgba(100,140,220,.35);color:transparent}
+  .md-h{color:var(--goal)}
+  .md-b{color:#d9822b}
+  .md-i{color:#9b7fd1}
+  .md-c{color:#2e9e6b}
+  .md-q{color:var(--muted)}
+  .md-l{color:#4f86d9}
+  .md-m{color:var(--hue,var(--goal))}
+  .md-k{color:var(--muted)}
+  .dlg-actions{display:flex;gap:6px;align-items:center}
+  .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{background:transparent;color:var(--fg);font-size:13px;padding:4px 10px;border-radius:0}
+  .seg button.on{background:var(--hue,var(--goal));color:#fff}
+  #preview{height:50vh;overflow:auto;padding:16px;font-size:15px;line-height:1.5}
+  #preview h1,#preview h2,#preview h3{margin:.6em 0 .3em;line-height:1.2}
+  #preview p,#preview ul,#preview ol{margin:.4em 0}
+  #preview code{background:rgba(127,127,127,.15);padding:1px 4px;border-radius:3px}
+  #preview pre{background:rgba(127,127,127,.12);padding:10px;border-radius:6px;overflow:auto}
+  #preview blockquote{margin:.4em 0;padding-left:10px;border-left:3px solid var(--hue,var(--goal));color:var(--muted)}
+  #preview a{color:var(--hue,var(--goal))}
+  #preview .alert{margin:.6em 0;padding:8px 12px;border-left:4px solid var(--ac);border-radius:4px;background:color-mix(in srgb,var(--ac) 10%,transparent);color:var(--fg)}
+  #preview .alert-title{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ac);margin-bottom:2px}
+  #preview .alert>:last-child{margin-bottom:0}
+  .alert-note{--ac:#4f86d9}.alert-tip{--ac:#2e9e6b}.alert-important{--ac:#8a63d2}.alert-warning{--ac:#c98a12}.alert-caution{--ac:#d1453b}
+  .md-a{color:#c98a12}
+  #preview:empty::before{content:'Rien à afficher';color:var(--muted)}
+  [hidden]{display:none!important}
+  :root{--ok:#2e9e6b;--ko:#d1453b;--fut:#b9b4ab;--quarter:#f07f13;--yel:#e6b422}
+  .tabs{display:flex;gap:4px;max-width:1100px;margin:0 auto 12px;border-bottom:1px solid var(--line)}
+  .tabs button{background:transparent;color:var(--muted);border-radius:6px 6px 0 0;padding:8px 16px;border-bottom:3px solid transparent;font-weight:600}
+  .tabs button.on{color:var(--goal);border-bottom-color:var(--goal)}
+  #calView{max-width:1100px;margin:0 auto}
+  .cal-settings{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;font-size:13px}
+  .cal-settings input,.cal-settings select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--cell);color:var(--fg)}
+  .cal-wrap{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+  .cal-box,.day-panel{background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:14px}
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cal-nav h2{margin:0;font-size:17px;text-transform:capitalize}
+  .cal-nav button{background:transparent;color:var(--fg);border:1px solid var(--line);padding:4px 12px}
+  .cal-nav button:disabled{opacity:.3;cursor:default}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal-dow{text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase;padding-bottom:2px}
+  .day{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:6px;padding:4px;font-size:13px;font-weight:600;display:flex;align-items:flex-start;justify-content:flex-start;color:#fff;cursor:pointer}
+  .day.st-ok{background:var(--ok)}
+  .day.st-ko{background:var(--ko)}
+  .day.st-future{background:color-mix(in srgb,var(--fut) 45%,var(--cell));color:var(--fg)}
+  .day.st-out{background:transparent;color:var(--muted);opacity:.35;cursor:default;font-weight:400}
+  .day.review{border:4px solid var(--quarter)}
+  .day.today{text-decoration:underline;text-underline-offset:3px}
+  .day.sel{box-shadow:0 0 0 2px var(--cell),0 0 0 4px var(--fg)}
+  .day .mk{position:absolute;right:4px;bottom:2px;font-size:12px}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;color:var(--muted)}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+  .stats{font-size:13px;color:var(--muted);margin-top:6px}
+  .day-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .day-title{font-weight:700;text-transform:capitalize}
+  .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;color:#fff;white-space:nowrap}
+  .badge.st-ok{background:var(--ok)}.badge.st-ko{background:var(--ko)}.badge.st-future{background:var(--fut)}
+  .reminder{background:color-mix(in srgb,var(--goal) 10%,transparent);color:var(--goal);border-radius:6px;padding:6px 10px;font-weight:600;font-size:13px;margin-bottom:10px}
+  .fld{display:block;margin-bottom:10px}
+  .fld>span{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+  .fld textarea,.fld select{width:100%;font:13px/1.4 system-ui,sans-serif;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);text-align:left}
+  .fld textarea{min-height:54px;resize:vertical;display:block}
+  .fld textarea:focus,.fld select:focus{outline:2px solid var(--goal);outline-offset:-1px;box-shadow:none}
+  .picks{display:flex;gap:4px;margin-bottom:6px}
+  .picks button{flex:1;background:transparent;color:var(--fg);border:1px solid var(--line);padding:6px 0;font-weight:700}
+  .picks button.on{background:var(--goal);border-color:var(--goal);color:#fff}
+  .picks .m-plus.on{background:var(--ok);border-color:var(--ok)}
+  .picks .m-minus.on{background:var(--ko);border-color:var(--ko)}
+  .picks .m-n.on{background:var(--yel);border-color:var(--yel);color:#1d1d1f}
+  .picks button:disabled,.fld :disabled{opacity:.5;cursor:default}
+  .review-box{border:3px solid var(--quarter);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:13px}
+  .review-box strong{color:var(--quarter)}
+  .review-box button{margin-top:6px;background:var(--quarter);padding:5px 10px;font-size:12px}
+  .note{font-size:12px;color:var(--muted);margin-bottom:10px}
+  @media (max-width:860px){.cal-wrap{grid-template-columns:1fr}}
+  .rules{max-width:1100px;margin:20px auto 0;padding:16px 20px;background:var(--cell);border:1px solid var(--line);border-top:4px solid var(--goal);border-radius:8px;font-size:14px;line-height:1.5}
+  .rules h2{margin:0 0 8px;font-size:17px;color:var(--goal)}
+  .rules h3{margin:8px 0 4px;font-size:14px}
+  .rules p{margin:0 0 8px}
+  .rules ol,.rules ul{margin:0;padding-left:20px}
+  .rules-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:700px){.rules-cols{grid-template-columns:1fr;gap:4px}}
+  @media (max-width:700px){#grid{aspect-ratio:auto;overflow-x:auto;grid-template-columns:repeat(3,260px)}.block{height:260px}}
+  @media print{header,.open{display:none}body{padding:0;background:#fff}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Grille Harada</h1>
+  <div class="bar">
+    <button id="export">Exporter (JSON)</button>
+    <label class="btn" for="file">Importer</label>
+    <input type="file" id="file" accept=".json,application/json" hidden>
+    <button class="ghost" id="print">Imprimer</button>
+    <button class="ghost" id="reset">Vider</button>
+  </div>
+</header>
+<nav class="tabs"><button id="tabGrid" class="on" type="button">Grille</button><button id="tabCal" type="button">Calendrier</button></nav>
+<section id="calView" hidden>
+  <div class="cal-settings">
+    <label>Début de l'objectif <input type="date" id="cStart"></label>
+    <label>Durée <select id="cYears"><option value="1">1 an</option><option value="2">2 ans</option><option value="3">3 ans</option></select></label>
+    <span id="cEnd" class="note" style="margin:0"></span>
+  </div>
+  <div class="cal-wrap">
+    <div class="cal-box">
+      <div class="cal-nav"><button id="cPrev" type="button">‹</button><h2 id="cTitle"></h2><button id="cNext" type="button">›</button></div>
+      <div class="cal-grid" id="cGrid"></div>
+      <div class="stats" id="cStats"></div>
+      <div class="legend">
+        <span><i style="background:var(--ok)"></i>Complété</span>
+        <span><i style="background:var(--ko)"></i>Incomplet</span>
+        <span><i style="background:color-mix(in srgb,var(--fut) 45%,var(--cell))"></i>À venir</span>
+        <span><i style="border:3px solid var(--quarter);width:8px;height:8px"></i>Révision trimestrielle de la grille</span>
+      </div>
+    </div>
+    <div class="day-panel" id="dayPanel"></div>
+  </div>
+</section>
+<div id="gridView">
+<div id="grid"></div>
+<footer class="rules">
+  <h2>Rappel : la grille Harada</h2>
+  <p><strong>Objectif :</strong> transformer un grand objectif à long terme, à atteindre sur <strong>1 à 3 ans</strong>, en actions concrètes et quotidiennes, en développant le <strong>caractère en parallèle des compétences</strong>. Méthode créée par le coach japonais Takashi Harada, rendue célèbre par Shohei Ohtani qui l'a remplie à 16 ans.</p>
+  <div class="rules-cols">
+    <div>
+      <h3>Structure</h3>
+      <ol>
+        <li><strong>1 objectif principal</strong> au centre : ambitieux, précis, à atteindre d'ici 1 à 3 ans.</li>
+        <li><strong>8 sous-objectifs</strong> autour : les piliers indispensables pour l'atteindre.</li>
+        <li><strong>8 actions par sous-objectif</strong>, soit 64 actions au total.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Règles</h3>
+      <ul>
+        <li>Une action = un comportement concret, faisable et vérifiable (« 10 min de lecture/jour », pas « lire plus »).</li>
+        <li>Développer le caractère en parallèle des compétences : discipline, humilité, gratitude, attitude et relations ont leur place dans la grille, au même titre que la technique.</li>
+        <li>Tenir le journal du calendrier <strong>10 à 15 min par jour</strong>, et réviser la grille à chaque fin de trimestre.</li>
+        <li>Remplir les 64 cases : chercher la 8ᵉ action force à creuser.</li>
+        <li>Transformer certaines actions en routines quotidiennes et les suivre.</li>
+        <li>Relire la grille souvent et l'ajuster selon les progrès.</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+</div>
+<dialog id="dlg">
+  <div class="dlg-head"><span id="dlgTitle"></span>
+    <div class="dlg-actions">
+      <div class="seg"><button id="mText" class="on" type="button">Texte</button><button id="mMd" type="button">Markdown</button></div>
+      <button id="close" aria-label="Fermer">✕</button>
+    </div>
+  </div>
+  <div class="editor" id="editor"><pre id="hl" aria-hidden="true"></pre><textarea id="big" spellcheck="false"></textarea></div>
+  <div id="preview" hidden></div>
+</dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script>
+const KEY = 'harada-grid-v1';
+const pad = n => String(n).padStart(2,'0');
+const ds = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pd = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const todayStr = () => ds(new Date());
+const empty = () => ({ goal:'', subgoals:Array(8).fill(''), actions:Array.from({length:8},()=>Array(8).fill('')),
+  start: todayStr(), years: 1, days: {}, gridEdits: [] });
+let data = empty();
+try { const s = localStorage.getItem(KEY); if (s) data = normalize(JSON.parse(s)); } catch(e){}
+
+function normalize(d){
+  const e = empty();
+  if (!d || typeof d!=='object') return e;
+  e.goal = String(d.goal ?? '');
+  for (let i=0;i<8;i++){
+    e.subgoals[i] = String(d.subgoals?.[i] ?? '');
+    for (let j=0;j<8;j++) e.actions[i][j] = String(d.actions?.[i]?.[j] ?? '');
+  }
+  const isD = s => typeof s==='string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  if (isD(d.start)) e.start = d.start;
+  if ([1,2,3].includes(+d.years)) e.years = +d.years;
+  if (Array.isArray(d.gridEdits)) e.gridEdits = [...new Set(d.gridEdits.filter(isD))].sort();
+  if (d.days && typeof d.days==='object'){
+    for (const [k,v] of Object.entries(d.days)){
+      if (!isD(k) || !v || typeof v!=='object') continue;
+      e.days[k] = {
+        task: /^[0-7]-[0-7]$/.test(v.task) ? v.task : '',
+        eval: [1,2,3,4,5].includes(+v.eval) ? +v.eval : 0,
+        evalNote: String(v.evalNote ?? ''), opp: String(v.opp ?? ''),
+        mood: ['+','-','N'].includes(v.mood) ? v.mood : '',
+        reflect: String(v.reflect ?? ''), grat: String(v.grat ?? '')
+      };
+    }
+  }
+  return e;
+}
+const idx = i => i<4 ? i : i-1;
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){} }
+
+function getVal(k,s,a){ return k==='goal'?data.goal : k==='sub'?data.subgoals[s] : data.actions[s][a]; }
+function setVal(k,s,a,v){
+  if (k==='goal') data.goal=v; else if (k==='sub') data.subgoals[s]=v; else data.actions[s][a]=v;
+  const sel = k==='goal' ? 'textarea[data-k="goal"]'
+    : k==='sub' ? `textarea[data-k="sub"][data-s="${s}"]`
+    : `textarea[data-k="act"][data-s="${s}"][data-a="${a}"]`;
+  grid.querySelectorAll(sel).forEach(o=>{ if(o.value!==v) o.value=v; });
+  const t=todayStr(); if (!data.gridEdits.includes(t)) data.gridEdits.push(t);
+  save();
+}
+function label(k,s,a){
+  if (k==='goal') return 'Objectif principal';
+  const sg = data.subgoals[s] ? ' – '+data.subgoals[s] : '';
+  return k==='sub' ? 'Sous-objectif '+(+s+1)+sg : 'Action '+(+a+1)+' · Sous-objectif '+(+s+1)+sg;
+}
+
+const grid = document.getElementById('grid');
+function render(){
+  grid.innerHTML='';
+  for (let b=0;b<9;b++){
+    const block = document.createElement('div');
+    block.className='block'+(b===4?' center':'');
+    if (b!==4) block.style.setProperty('--hue',`var(--h${idx(b)})`);
+    for (let c=0;c<9;c++){
+      const cell=document.createElement('div'), t=document.createElement('textarea'), btn=document.createElement('button');
+      let k,s='',a='';
+      if (b===4 && c===4){ k='goal'; cell.className='cell goal'; t.placeholder='Objectif principal'; }
+      else if (b===4 || c===4){
+        s = b===4 ? idx(c) : idx(b); k='sub';
+        cell.className='cell sub'; cell.style.setProperty('--hue',`var(--h${s})`);
+        t.placeholder='Sous-objectif '+(s+1);
+      } else { k='act'; s=idx(b); a=idx(c); cell.className='cell act'; t.placeholder='Action'; }
+      t.dataset.k=k; t.dataset.s=s; t.dataset.a=a; t.value=getVal(k,s,a);
+      btn.className='open'; btn.type='button'; btn.title='Agrandir'; btn.textContent='⤢';
+      btn.onclick=()=>openCell(k,s,a,cell);
+      cell.append(t,btn); block.appendChild(cell);
+    }
+    grid.appendChild(block);
+  }
+}
+grid.addEventListener('input', e=>{ const t=e.target; if(t.tagName==='TEXTAREA') setVal(t.dataset.k,t.dataset.s,t.dataset.a,t.value); });
+
+const dlg=document.getElementById('dlg'), big=document.getElementById('big'), dlgTitle=document.getElementById('dlgTitle');
+let cur=null;
+function openCell(k,s,a,cell){
+  cur={k,s,a};
+  dlg.style.setProperty('--hue', k==='goal' ? 'var(--goal)' : `var(--h${s})`);
+  dlgTitle.textContent=label(k,s,a);
+  big.value=getVal(k,s,a);
+  highlight();
+  setMode('text');
+  dlg.showModal(); big.focus();
+}
+const preview=document.getElementById('preview'), mText=document.getElementById('mText'), mMd=document.getElementById('mMd');
+function renderMd(src){
+  if (window.marked && window.DOMPurify) return DOMPurify.sanitize(marked.parse(src,{breaks:true}));
+  const esc=src.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  return esc ? '<pre>'+esc+'</pre>' : '';
+}
+const ALERTS={NOTE:['ℹ️','Note'],TIP:['💡','Astuce'],IMPORTANT:['❗','Important'],WARNING:['⚠️','Attention'],CAUTION:['🛑','Prudence']};
+function applyAlerts(root){
+  root.querySelectorAll('blockquote').forEach(bq=>{
+    const p=bq.querySelector(':scope > p');
+    if (!p || p!==bq.firstElementChild) return;
+    const m=p.innerHTML.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(<br\s*\/?>)?\s*/i);
+    if (!m) return;
+    const type=m[1].toUpperCase(), [icon,name]=ALERTS[type];
+    p.innerHTML=p.innerHTML.slice(m[0].length);
+    if (!p.innerHTML.trim()) p.remove();
+    const div=document.createElement('div');
+    div.className='alert alert-'+type.toLowerCase();
+    const t=document.createElement('div'); t.className='alert-title'; t.textContent=icon+' '+name;
+    div.appendChild(t);
+    while (bq.firstChild) div.appendChild(bq.firstChild);
+    bq.replaceWith(div);
+  });
+}
+function setMode(m){
+  const md=m==='md';
+  if (md){ preview.innerHTML=renderMd(big.value); applyAlerts(preview); }
+  editor.hidden=md; preview.hidden=!md;
+  mText.classList.toggle('on',!md); mMd.classList.toggle('on',md);
+  if (!md) big.focus();
+}
+mText.onclick=()=>setMode('text');
+mMd.onclick=()=>setMode('md');
+big.addEventListener('input',()=>{ if(cur) setVal(cur.k,cur.s,cur.a,big.value); highlight(); });
+big.addEventListener('scroll',()=>{ hl.scrollTop=big.scrollTop; hl.scrollLeft=big.scrollLeft; });
+const hl=document.getElementById('hl'), editor=document.getElementById('editor');
+const escH=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function inline(s){
+  return s
+    .replace(/(`[^`]+`)/g,'<span class="md-c">$1</span>')
+    .replace(/(\*\*[^*]+\*\*|__[^_]+__)/g,'<span class="md-b">$1</span>')
+    .replace(/(^|[^*\w])(\*[^*\s][^*]*\*|_[^_\s][^_]*_)/g,'$1<span class="md-i">$2</span>')
+    .replace(/(!?\[[^\]]*\]\([^)]*\))/g,'<span class="md-l">$1</span>');
+}
+function highlight(){
+  let fence=false;
+  hl.innerHTML=big.value.split('\n').map(line=>{
+    const e=escH(line);
+    if (/^\s*(```|~~~)/.test(line)){ fence=!fence; return '<span class="md-c">'+e+'</span>'; }
+    if (fence) return '<span class="md-c">'+e+'</span>';
+    if (/^#{1,6}\s/.test(line)) return '<span class="md-h">'+e+'</span>';
+    if (/^\s*&gt;/.test(e)) return '<span class="md-q">'+e.replace(/(\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\])/i,'<span class="md-a">$1</span>')+'</span>';
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) return '<span class="md-k">'+e+'</span>';
+    const m=e.match(/^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s)?(.*)$/);
+    if (m) return m[1]+'<span class="md-m">'+m[2]+'</span>'+m[3]+(m[4]?'<span class="md-m">'+m[4]+'</span>':'')+inline(m[5]);
+    return inline(e);
+  }).join('\n')+'\n';
+  hl.scrollTop=big.scrollTop;
+}
+document.getElementById('close').onclick=()=>dlg.close();
+dlg.addEventListener('click',e=>{ if(e.target===dlg) dlg.close(); });
+
+document.getElementById('export').onclick=()=>{
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='grille-harada-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+document.getElementById('file').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ data=normalize(JSON.parse(r.result)); save(); render(); initCal(); }catch(err){ alert('Fichier invalide.'); } };
+  r.readAsText(f); e.target.value='';
+};
+document.getElementById('print').onclick=()=>window.print();
+document.getElementById('reset').onclick=()=>{
+  if(confirm('Vider toute la grille ? (le calendrier est conservé)')){
+    const e=empty(); data.goal=e.goal; data.subgoals=e.subgoals; data.actions=e.actions; save(); render(); renderCal();
+  }
+};
+
+/* ---------- Onglets ---------- */
+const tabGrid=document.getElementById('tabGrid'), tabCal=document.getElementById('tabCal');
+const gridView=document.getElementById('gridView'), calView=document.getElementById('calView');
+function showTab(t){
+  const cal=t==='cal';
+  gridView.hidden=cal; calView.hidden=!cal;
+  tabGrid.classList.toggle('on',!cal); tabCal.classList.toggle('on',cal);
+  try{ localStorage.setItem(KEY+'-tab',t); }catch(e){}
+  if (cal) renderCal();
+}
+tabGrid.onclick=()=>showTab('grid');
+tabCal.onclick=()=>showTab('cal');
+
+/* ---------- Calendrier ---------- */
+const addDays=(d,n)=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+n);
+function addMonths(d,n){
+  const t=new Date(d.getFullYear(),d.getMonth()+n,1);
+  const last=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();
+  return new Date(t.getFullYear(),t.getMonth(),Math.min(d.getDate(),last));
+}
+const fmt=s=>pd(s).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+let period, reviews, view, sel=null;
+function computePeriod(){
+  const start=pd(data.start); reviews={};
+  for (let q=1;q<=data.years*4;q++) reviews[ds(addDays(addMonths(start,3*q),-1))]=q;
+  period={start:data.start, end:ds(addDays(addMonths(start,12*data.years),-1))};
+}
+function reviewEdit(s){
+  const from=ds(addDays(pd(s),-6));
+  return data.gridEdits.filter(e=>e>=from && e<=s).pop() || null;
+}
+function isComplete(s){
+  const d=data.days[s];
+  if (!d || !d.task || !d.eval || !d.mood) return false;
+  if (![d.evalNote,d.opp,d.reflect,d.grat].every(x=>x.trim())) return false;
+  if (reviews[s] && !reviewEdit(s)) return false;
+  return true;
+}
+function status(s){
+  if (s<period.start || s>period.end) return 'out';
+  if (s>todayStr()) return 'future';
+  return isComplete(s) ? 'ok' : 'ko';
+}
+const ST_LABEL={ok:'Complété',ko:'Incomplet',future:'À venir'};
+
+const cStart=document.getElementById('cStart'), cYears=document.getElementById('cYears');
+cStart.onchange=()=>{ if(!cStart.value) return; data.start=cStart.value; save(); initCal(); };
+cYears.onchange=()=>{ data.years=+cYears.value; save(); initCal(); };
+document.getElementById('cPrev').onclick=()=>{ view=new Date(view.getFullYear(),view.getMonth()-1,1); renderCal(); };
+document.getElementById('cNext').onclick=()=>{ view=new Date(view.getFullYear(),view.getMonth()+1,1); renderCal(); };
+
+function initCal(){
+  computePeriod();
+  const t=todayStr(), ref=(t>=period.start && t<=period.end) ? t : period.start;
+  view=new Date(pd(ref).getFullYear(),pd(ref).getMonth(),1);
+  sel=ref;
+  renderCal();
+}
+function renderCal(){
+  if (!period) computePeriod();
+  cStart.value=data.start; cYears.value=data.years;
+  document.getElementById('cEnd').textContent='Fin : '+fmt(period.end);
+  renderMonth(); renderPanel();
+}
+function renderMonth(){
+  const y=view.getFullYear(), m=view.getMonth(), t=todayStr();
+  document.getElementById('cTitle').textContent=view.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const ps=pd(period.start), pe=pd(period.end);
+  document.getElementById('cPrev').disabled = y*12+m <= ps.getFullYear()*12+ps.getMonth();
+  document.getElementById('cNext').disabled = y*12+m >= pe.getFullYear()*12+pe.getMonth();
+  const g=document.getElementById('cGrid'); g.innerHTML='';
+  ['lun','mar','mer','jeu','ven','sam','dim'].forEach(n=>{ const h=document.createElement('div'); h.className='cal-dow'; h.textContent=n; g.appendChild(h); });
+  const off=(new Date(y,m,1).getDay()+6)%7, n=new Date(y,m+1,0).getDate();
+  for (let i=0;i<off;i++) g.appendChild(document.createElement('div'));
+  for (let d=1; d<=n; d++){
+    const s=ds(new Date(y,m,d)), st=status(s), b=document.createElement('button');
+    b.type='button'; b.className='day st-'+st+(reviews[s]?' review':'')+(s===t?' today':'')+(s===sel?' sel':'');
+    b.textContent=d;
+    const mood=data.days[s]?.mood;
+    if (mood && st!=='out'){ const k=document.createElement('span'); k.className='mk'; k.textContent=mood==='-'?'−':mood; b.appendChild(k); }
+    if (reviews[s]) b.title='Révision de la grille – trimestre '+reviews[s];
+    if (st==='out') b.disabled=true; else b.onclick=()=>{ sel=s; renderMonth(); renderPanel(); };
+    g.appendChild(b);
+  }
+  let ok=0, past=0;
+  for (let d=pd(period.start); ds(d)<=t && ds(d)<=period.end; d=addDays(d,1)){ past++; if (isComplete(ds(d))) ok++; }
+  document.getElementById('cStats').textContent=`Jours complétés : ${ok} / ${past} jours écoulés`;
+}
+function renderPanel(){
+  const p=document.getElementById('dayPanel');
+  if (!sel || status(sel)==='out'){ p.innerHTML='<p class="note">Sélectionne un jour de la période.</p>'; return; }
+  const st=status(sel), fut=st==='future', q=reviews[sel];
+  const long=pd(sel).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  p.innerHTML=`
+    <div class="day-head"><div class="day-title">${long}</div><span class="badge st-${st}" id="dBadge">${ST_LABEL[st]}</span></div>
+    <div class="reminder">⏱ 10 à 15 min par jour</div>
+    ${fut?'<p class="note">Jour à venir : la fiche sera modifiable ce jour-là.</p>':''}
+    ${q?'<div class="review-box" id="dReview"></div>':''}
+    <label class="fld"><span>Tâche du jour</span><select id="fTask"></select></label>
+    <div class="fld"><span>Auto-évaluation</span>
+      <div class="picks" id="fEval">${[1,2,3,4,5].map(n=>`<button type="button" data-v="${n}">${n}</button>`).join('')}</div>
+      <textarea id="fEvalNote" placeholder="Commentaire"></textarea></div>
+    <label class="fld"><span>Opportunité du jour</span><textarea id="fOpp"></textarea></label>
+    <div class="fld"><span>Bilan de la journée</span>
+      <div class="picks" id="fMood"><button type="button" class="m-plus" data-v="+">+</button><button type="button" class="m-minus" data-v="-">−</button><button type="button" class="m-n" data-v="N">N</button></div></div>
+    <label class="fld"><span>Réflexion sur soi-même</span><textarea id="fReflect"></textarea></label>
+    <label class="fld"><span>Gratitude</span><textarea id="fGrat"></textarea></label>`;
+  const d=data.days[sel]||{task:'',eval:0,evalNote:'',opp:'',mood:'',reflect:'',grat:''};
+  const ensure=()=>data.days[sel] ||= {task:'',eval:0,evalNote:'',opp:'',mood:'',reflect:'',grat:''};
+  const changed=()=>{ save(); renderMonth(); const b=document.getElementById('dBadge'), s=status(sel); b.className='badge st-'+s; b.textContent=ST_LABEL[s]; };
+
+  if (q){
+    const r=document.getElementById('dReview'), e=reviewEdit(sel);
+    const from=fmt(ds(addDays(pd(sel),-6)));
+    r.innerHTML=`<strong>Révision des grilles – trimestre ${q}</strong><br>`+
+      (e ? `✅ Grille modifiée le ${fmt(e)}.` : `⚠️ Grille non modifiée entre le ${from} et le ${fmt(sel)} : ce jour reste incomplet.`)+
+      `<br><button type="button" id="dGoGrid">Ouvrir la grille</button>`;
+    document.getElementById('dGoGrid').onclick=()=>showTab('grid');
+  }
+
+  const sT=document.getElementById('fTask');
+  const o0=new Option('— Choisir une action de la grille —',''); sT.add(o0);
+  let any=false;
+  for (let s=0;s<8;s++){
+    const og=document.createElement('optgroup'); og.label=data.subgoals[s]||('Sous-objectif '+(s+1));
+    for (let a=0;a<8;a++){ const txt=data.actions[s][a].trim(); if (!txt) continue; any=true; og.appendChild(new Option(txt.split('\n')[0].slice(0,90),`${s}-${a}`)); }
+    if (og.children.length) sT.appendChild(og);
+  }
+  if (d.task && ![...sT.options].some(o=>o.value===d.task)) sT.add(new Option('(action supprimée de la grille)',d.task));
+  if (!any) o0.text='— Remplis d\'abord les actions de la grille —';
+  sT.value=d.task;
+  sT.onchange=()=>{ ensure().task=sT.value; changed(); };
+
+  [['fEvalNote','evalNote'],['fOpp','opp'],['fReflect','reflect'],['fGrat','grat']].forEach(([id,k])=>{
+    const el=document.getElementById(id); el.value=d[k];
+    el.oninput=()=>{ ensure()[k]=el.value; changed(); };
+  });
+  const picks=(id,k,parse)=>{
+    const box=document.getElementById(id);
+    const paint=()=>box.querySelectorAll('button').forEach(b=>b.classList.toggle('on',String((data.days[sel]||d)[k])===b.dataset.v));
+    box.querySelectorAll('button').forEach(b=>b.onclick=()=>{ const v=parse(b.dataset.v), x=ensure(); x[k]=x[k]===v?(k==='eval'?0:''):v; paint(); changed(); });
+    paint();
+  };
+  picks('fEval','eval',Number);
+  picks('fMood','mood',String);
+  if (fut) p.querySelectorAll('textarea,select,button:not(#dGoGrid)').forEach(el=>el.disabled=true);
+}
+
+render();
+initCal();
+try{ if (localStorage.getItem(KEY+'-tab')==='cal') showTab('cal'); }catch(e){}
+</script>
+</body>
+</html>
